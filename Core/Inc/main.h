@@ -53,7 +53,8 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
+void rx_ring_put(uint8_t byte);
+int rx_ring_get(uint8_t *out);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

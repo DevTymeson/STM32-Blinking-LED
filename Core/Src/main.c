@@ -67,9 +67,10 @@ volatile uint8_t rxReady = 0;
 uint8_t line_buffer[RX_RING_SIZE] = {0};
 uint8_t line_buffer_index = 0;
 
-volatile uint8_t rx_ring[RX_RING_SIZE] = {0};
-volatile uint8_t rx_ring_head = 0;
-volatile uint8_t rx_ring_tail = 0;
+volatile uint8_t rx_ring[RX_RING_SIZE];
+volatile uint16_t rx_head = 0;
+volatile uint16_t rx_tail = 0;
+volatile uint32_t rx_overruns = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -182,25 +183,29 @@ int main(void)
 		  }
 	  }
 
-	  if (rxReady) {
-		  rxReady = 0;
-		  char c = rxByte;
-		  printf("%c", c);
-		  fflush(stdout);
-		  line_buffer[line_buffer_index] = c;
-		  if (c == '\n' || c == '\r') {
+	  uint8_t c;
+	  while (rx_ring_get(&c)) {
+		  if (c == '\b' && line_buffer_index > 0) {
+			  line_buffer_index--;
+			  printf("\b\x20\b");
+			  fflush(stdout);
+		  } else if (c == '\n' || c == '\r') {
 			  line_buffer[line_buffer_index] = '\0';
-			  if(strncmp(line_buffer, "fast", RX_RING_SIZE) == 0) {
+			  if(strcmp(line_buffer, "fast") == 0) {
 				  speed = FAST;
-			  } else if (strncmp(line_buffer, "mid", RX_RING_SIZE) == 0) {
+			  } else if (strcmp(line_buffer, "mid") == 0) {
 				  speed = MID;
-			  } else if (strncmp(line_buffer, "slow", RX_RING_SIZE) == 0) {
+			  } else if (strcmp(line_buffer, "slow") == 0) {
 				  speed = SLOW;
 			  }
 			  line_buffer_index = 0;
 			  printf("\r\n");
-		  } else {
-			  line_buffer_index++;
+		  } else if (line_buffer_index < RX_RING_SIZE - 1) {
+			  line_buffer[line_buffer_index++] = c;
+			  if (c >= 0x20 && c <= 0x7E) {
+				  printf("%c", c);
+				  fflush(stdout);
+			  }
 		  }
 	  }
 
@@ -387,20 +392,30 @@ int __io_putchar(int ch)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart->Instance == LPUART1) {
-		rxReady = 1;
+		rx_ring_put(rxByte);
 		HAL_UART_Receive_IT(&hlpuart1, &rxByte, 1);
 	}
 }
 
-void rx_ring_put(int ch)
+void rx_ring_put(uint8_t byte)
 {
-	rx_ring[rx_ring_head] = ch;
-	rx_ring_head = (rx_ring_head + 1) % RX_RING_SIZE;
+	uint16_t next = (rx_head + 1) & (RX_RING_SIZE - 1);
+	if (next == rx_tail) {
+		rx_overruns++;
+		return;
+	}
+	rx_ring[rx_head] = byte;
+	rx_head = next;
 }
 
-int rx_ring_get(int *ch)
+int rx_ring_get(uint8_t *out)
 {
-
+	if (rx_head == rx_tail) {
+		return 0;
+	}
+	*out = rx_ring[rx_tail];
+	rx_tail = (rx_tail + 1) & (RX_RING_SIZE - 1);
+	return 1;
 }
 /* USER CODE END 4 */
 
