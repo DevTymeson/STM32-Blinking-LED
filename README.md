@@ -1,0 +1,1 @@
+Developed an interrupt-driven STM32 firmware application using GPIO and external interrupts. Implemented finite state machines for LED behavior and button-controlled timing modes, with non-blocking timing based on the system tick and software debouncing.
