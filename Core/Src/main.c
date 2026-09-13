@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +42,7 @@ typedef enum {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define CLEAR_SCREEN "\x1b[2J\x1b[H"
+#define RX_RING_SIZE 64
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,10 +58,18 @@ TIM_HandleTypeDef htim6;
 /* USER CODE BEGIN PV */
 volatile uint8_t buttonPressed = 0;
 static uint32_t lastPressAction = 0;
+
 static const uint32_t debounceWindow = 20;
 volatile uint32_t ms_counter = 0;
+
 volatile uint8_t rxByte = 0;
 volatile uint8_t rxReady = 0;
+uint8_t line_buffer[RX_RING_SIZE] = {0};
+uint8_t line_buffer_index = 0;
+
+volatile uint8_t rx_ring[RX_RING_SIZE] = {0};
+volatile uint8_t rx_ring_head = 0;
+volatile uint8_t rx_ring_tail = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -150,51 +160,51 @@ int main(void)
 			  lastPressAction = now;
 			  lastTransition = now;
 			  switch (speed) {
-			  case SLOW:
-				  speed = MID;
-				  break;
-			  case MID:
-				  speed = FAST;
-				  break;
-			  case FAST:
-				  speed = SLOW;
-				  break;
+			  case SLOW: speed = MID;  break;
+			  case MID:  speed = FAST; break;
+			  case FAST: speed = SLOW; break;
 			  }
 		  }
 	  }
 
 	  if (now - lastTransition >= speed) {
 		  switch (led_state) {
-		  case LED_OFF:
-			  led_state = LED_ON;
-			  break;
-		  case LED_ON:
-			  led_state = LED_OFF;
-			  break;
+		  case LED_OFF: led_state = LED_ON;  break;
+		  case LED_ON:  led_state = LED_OFF; break;
 		  }
 		  lastTransition = now;
 
 		  switch(led_state) {
 		  case LED_OFF:
-			  HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_RESET);
-			  break;
+			  HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_RESET); break;
 		  case LED_ON:
-			  HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_SET);
-			  break;
+			  HAL_GPIO_WritePin(LED_GPIO_PORT, LED_PIN, GPIO_PIN_SET); break;
 		  }
 	  }
 
 	  if (rxReady) {
 		  rxReady = 0;
-		  uint8_t cmd = rxByte;
-		  switch (cmd) {
-		  case 's': speed = SLOW; break;
-		  case 'm': speed = MID; break;
-		  case 'f': speed = FAST; break;
-		  case '?': printf("ms_counter=%lu speed=%d\r\n", now, speed); break;
-		  default: break;
+		  char c = rxByte;
+		  printf("%c", c);
+		  fflush(stdout);
+		  line_buffer[line_buffer_index] = c;
+		  if (c == '\n' || c == '\r') {
+			  line_buffer[line_buffer_index] = '\0';
+			  if(strncmp(line_buffer, "fast", RX_RING_SIZE) == 0) {
+				  speed = FAST;
+			  } else if (strncmp(line_buffer, "mid", RX_RING_SIZE) == 0) {
+				  speed = MID;
+			  } else if (strncmp(line_buffer, "slow", RX_RING_SIZE) == 0) {
+				  speed = SLOW;
+			  }
+			  line_buffer_index = 0;
+			  printf("\r\n");
+		  } else {
+			  line_buffer_index++;
 		  }
 	  }
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -380,6 +390,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		rxReady = 1;
 		HAL_UART_Receive_IT(&hlpuart1, &rxByte, 1);
 	}
+}
+
+void rx_ring_put(int ch)
+{
+	rx_ring[rx_ring_head] = ch;
+	rx_ring_head = (rx_ring_head + 1) % RX_RING_SIZE;
+}
+
+int rx_ring_get(int *ch)
+{
+
 }
 /* USER CODE END 4 */
 
