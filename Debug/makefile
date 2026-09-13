@@ -61,7 +61,7 @@ main-build: FSM_Blink.elf secondary-outputs
 
 # Tool invocations
 FSM_Blink.elf FSM_Blink.map: $(OBJS) $(USER_OBJS) C:\Users\dctymeson\STM32CubeIDE\workspace_2.2.0\FSM_Blink\STM32G474RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "FSM_Blink.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\dctymeson\STM32CubeIDE\workspace_2.2.0\FSM_Blink\STM32G474RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="FSM_Blink.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "FSM_Blink.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\dctymeson\STM32CubeIDE\workspace_2.2.0\FSM_Blink\STM32G474RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="FSM_Blink.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
