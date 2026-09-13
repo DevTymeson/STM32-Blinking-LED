@@ -69,6 +69,8 @@ void Error_Handler(void);
 #define BTN_EXTI_IRQn			EXTI15_10_IRQn
 #define BTN_EXTI_IRQHandler		EXTI15_10_IRQHandler
 
+#define TIM6_CLK_ENABLE()		__HAL_RCC_TIM6_CLK_ENABLE()
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

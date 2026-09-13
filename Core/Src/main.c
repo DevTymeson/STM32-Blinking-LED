@@ -26,7 +26,16 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum {
+	LED_ON,
+	LED_OFF
+} LedState_t;
 
+typedef enum {
+	SLOW = 1000,
+	MID = 500,
+	FAST = 100
+} PulseSpeed_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -40,15 +49,18 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 volatile uint8_t buttonPressed = 0;
 static uint32_t lastPressAction = 0;
-static const uint8_t debounceWindow = 20;
+static const uint32_t debounceWindow = 20;
+volatile uint32_t ms_counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -62,18 +74,6 @@ void SystemClock_Config(void);
   * @brief  The application entry point.
   * @retval int
   */
-
-typedef enum {
-	LED_ON,
-	LED_OFF
-} LedState_t;
-
-typedef enum {
-	SLOW = 1000,
-	MID = 500,
-	FAST = 100
-} PulseSpeed_t;
-
 int main(void)
 {
 
@@ -94,10 +94,11 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  TIM6_CLK_ENABLE();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -115,17 +116,21 @@ int main(void)
   HAL_GPIO_Init(BTN_GPIO_PORT, &GPIO_InitStruct);
   HAL_NVIC_SetPriority(BTN_EXTI_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(BTN_EXTI_IRQn);
+
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+  HAL_TIM_Base_Start_IT(&htim6);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   LedState_t led_state = LED_OFF;
   PulseSpeed_t speed = SLOW;
-  uint32_t lastTransition = HAL_GetTick();
+  uint32_t lastTransition = ms_counter;
 
   while (1)
   {
-	  uint32_t now = HAL_GetTick();
+	  uint32_t now = ms_counter;
 
 	  if (buttonPressed) {
 		  buttonPressed = 0;
@@ -213,6 +218,44 @@ void SystemClock_Config(void)
   }
 }
 
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 1599;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 9;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
+}
+
 /* USER CODE BEGIN 4 */
 void BTN_EXTI_IRQHandler(void)
 {
@@ -223,6 +266,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	if (GPIO_Pin == BTN_PIN) {
 		buttonPressed = 1;
+	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim->Instance == TIM6) {
+		ms_counter++;
 	}
 }
 /* USER CODE END 4 */
