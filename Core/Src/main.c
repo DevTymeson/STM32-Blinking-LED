@@ -43,6 +43,7 @@ typedef enum {
 /* USER CODE BEGIN PD */
 #define CLEAR_SCREEN "\x1b[2J\x1b[H"
 #define RX_RING_SIZE 64
+#define TX_RING_SIZE 128
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -63,7 +64,6 @@ static const uint32_t debounceWindow = 20;
 volatile uint32_t ms_counter = 0;
 
 volatile uint8_t rxByte = 0;
-volatile uint8_t rxReady = 0;
 uint8_t line_buffer[RX_RING_SIZE] = {0};
 uint8_t line_buffer_index = 0;
 
@@ -71,6 +71,12 @@ volatile uint8_t rx_ring[RX_RING_SIZE];
 volatile uint16_t rx_head = 0;
 volatile uint16_t rx_tail = 0;
 volatile uint32_t rx_overruns = 0;
+
+volatile uint8_t tx_ring[TX_RING_SIZE];
+volatile uint16_t tx_head = 0;
+volatile uint16_t tx_tail = 0;
+volatile uint32_t tx_overruns = 0;
+volatile uint8_t tx_busy = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -385,7 +391,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 int __io_putchar(int ch)
 {
-	HAL_UART_Transmit(&hlpuart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+	tx_ring_put(ch);
 	return ch;
 }
 
@@ -416,6 +422,43 @@ int rx_ring_get(uint8_t *out)
 	*out = rx_ring[rx_tail];
 	rx_tail = (rx_tail + 1) & (RX_RING_SIZE - 1);
 	return 1;
+}
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart->Instance == LPUART1) {
+		tx_tail = (tx_tail + 1) & (TX_RING_SIZE - 1);
+
+		if (tx_head != tx_tail) {
+			HAL_UART_Transmit_IT(&hlpuart1, (uint8_t *)&tx_ring[tx_tail], 1);
+		} else {
+			tx_busy = 0;
+		}
+	}
+}
+
+void tx_ring_put(uint8_t byte)
+{
+	uint32_t primask = __get_PRIMASK();
+		__disable_irq();
+
+	uint16_t next = (tx_head + 1) & (TX_RING_SIZE - 1);
+
+	if (next == tx_tail) {
+		tx_overruns++;
+		__set_PRIMASK(primask);
+		return;
+	}
+
+	tx_ring[tx_head] = byte;
+	tx_head = next;
+
+	if (!tx_busy) {
+		tx_busy = 1;
+		HAL_UART_Transmit_IT(&hlpuart1, (uint8_t *)&tx_ring[tx_tail], 1);
+	}
+
+	__set_PRIMASK(primask);
 }
 /* USER CODE END 4 */
 

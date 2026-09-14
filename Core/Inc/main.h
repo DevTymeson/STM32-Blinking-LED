@@ -55,6 +55,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 void rx_ring_put(uint8_t byte);
 int rx_ring_get(uint8_t *out);
+void tx_ring_put(uint8_t byte);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
